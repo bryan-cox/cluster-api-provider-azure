@@ -24,6 +24,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
+	asonetworkv1api20201101 "github.com/Azure/azure-service-operator/v2/api/network/v1api20201101"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -204,8 +205,8 @@ func (m *MachineScope) TagsSpecs() []azure.TagsSpec {
 }
 
 // PublicIPSpecs returns the public IP specs.
-func (m *MachineScope) PublicIPSpecs() []azure.ResourceSpecGetter {
-	var specs []azure.ResourceSpecGetter
+func (m *MachineScope) PublicIPSpecs() []azure.ASOResourceSpecGetter[*asonetworkv1api20201101.PublicIPAddress] {
+	var specs []azure.ASOResourceSpecGetter[*asonetworkv1api20201101.PublicIPAddress]
 	if m.AzureMachine.Spec.AllocatePublicIP {
 		specs = append(specs, &publicips.PublicIPSpec{
 			Name:             azure.GenerateNodePublicIPName(m.Name()),

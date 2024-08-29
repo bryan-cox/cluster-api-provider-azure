@@ -20,8 +20,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
-	"github.com/pkg/errors"
+	asonetworkv1 "github.com/Azure/azure-service-operator/v2/api/network/v1api20201101"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-azure/azure/converters"
@@ -30,6 +30,7 @@ import (
 // PublicIPSpec defines the specification for a Public IP.
 type PublicIPSpec struct {
 	Name             string
+	Namespace        string
 	ResourceGroup    string
 	ClusterName      string
 	DNSName          string
@@ -41,62 +42,61 @@ type PublicIPSpec struct {
 	IPTags           []infrav1.IPTag
 }
 
-// ResourceName returns the name of the public IP.
-func (s *PublicIPSpec) ResourceName() string {
-	return s.Name
+// ResourceRef implements azure.ASOResourceSpecGetter.
+func (s *PublicIPSpec) ResourceRef() *asonetworkv1.PublicIPAddress {
+	return &asonetworkv1.PublicIPAddress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      s.Name,
+			Namespace: s.Namespace,
+		},
+	}
 }
 
-// ResourceGroupName returns the name of the resource group.
-func (s *PublicIPSpec) ResourceGroupName() string {
-	return s.ResourceGroup
-}
+// Parameters implements azure.ASOResourceSpecGetter.
+func (s *PublicIPSpec) Parameters(_ context.Context, existingPublicIPAddress *asonetworkv1.PublicIPAddress) (params *asonetworkv1.PublicIPAddress, err error) {
+	publicIPAddress := &asonetworkv1.PublicIPAddress{}
+	publicIPAddress.Spec = asonetworkv1.PublicIPAddress_Spec{}
 
-// OwnerResourceName is a no-op for public IPs.
-func (s *PublicIPSpec) OwnerResourceName() string {
-	return ""
-}
-
-// Parameters returns the parameters for the public IP.
-func (s *PublicIPSpec) Parameters(ctx context.Context, existing interface{}) (params interface{}, err error) {
-	if existing != nil {
-		if _, ok := existing.(armnetwork.PublicIPAddress); !ok {
-			return nil, errors.Errorf("%T is not an armnetwork.PublicIPAddress", existing)
-		}
-		// public IP already exists
-		return nil, nil
+	if existingPublicIPAddress != nil {
+		publicIPAddress = existingPublicIPAddress
 	}
 
-	addressVersion := armnetwork.IPVersionIPv4
+	publicIPAddress.Spec.PublicIPAddressVersion = ptr.To(asonetworkv1.IPVersion_IPv4)
 	if s.IsIPv6 {
-		addressVersion = armnetwork.IPVersionIPv6
+		publicIPAddress.Spec.PublicIPAddressVersion = ptr.To(asonetworkv1.IPVersion_IPv6)
 	}
 
 	// only set DNS properties if there is a DNS name specified
-	var dnsSettings *armnetwork.PublicIPAddressDNSSettings
+	var dnsSettings *asonetworkv1.PublicIPAddressDnsSettings
 	if s.DNSName != "" {
-		dnsSettings = &armnetwork.PublicIPAddressDNSSettings{
+		dnsSettings = &asonetworkv1.PublicIPAddressDnsSettings{
 			DomainNameLabel: ptr.To(strings.Split(s.DNSName, ".")[0]),
 			Fqdn:            ptr.To(s.DNSName),
 		}
+		publicIPAddress.Spec.DnsSettings = dnsSettings
 	}
 
-	return armnetwork.PublicIPAddress{
-		Tags: converters.TagsToMap(infrav1.Build(infrav1.BuildParams{
-			ClusterName: s.ClusterName,
-			Lifecycle:   infrav1.ResourceLifecycleOwned,
-			Name:        ptr.To(s.Name),
-			Additional:  s.AdditionalTags,
-		})),
-		SKU:              &armnetwork.PublicIPAddressSKU{Name: ptr.To(armnetwork.PublicIPAddressSKUNameStandard)},
-		Name:             ptr.To(s.Name),
-		Location:         ptr.To(s.Location),
-		ExtendedLocation: converters.ExtendedLocationToNetworkSDK(s.ExtendedLocation),
-		Properties: &armnetwork.PublicIPAddressPropertiesFormat{
-			PublicIPAddressVersion:   &addressVersion,
-			PublicIPAllocationMethod: ptr.To(armnetwork.IPAllocationMethodStatic),
-			DNSSettings:              dnsSettings,
-			IPTags:                   converters.IPTagsToSDK(s.IPTags),
-		},
-		Zones: s.FailureDomains,
-	}, nil
+	publicIPAddress.Spec.Tags = map[string]string{
+		"ClusterName": s.ClusterName,
+		"Lifecycle":   string(infrav1.ResourceLifecycleOwned),
+		"Name":        s.Name,
+	}
+	for k, v := range s.AdditionalTags {
+		publicIPAddress.Spec.Tags[k] = v
+	}
+
+	publicIPAddress.Spec.Sku = &asonetworkv1.PublicIPAddressSku{Name: ptr.To(asonetworkv1.PublicIPAddressSku_Name_Standard)}
+	publicIPAddress.Spec.AzureName = s.Name
+	publicIPAddress.Spec.Location = ptr.To(s.Location)
+	publicIPAddress.Spec.ExtendedLocation = converters.ExtendedLocationToNetworkASO(s.ExtendedLocation)
+	publicIPAddress.Spec.PublicIPAllocationMethod = ptr.To(asonetworkv1.IPAllocationMethod_Dynamic)
+	publicIPAddress.Spec.IpTags = converters.IpTagsToASO(s.IPTags)
+	publicIPAddress.Spec.Zones = converters.StringsPtrsToSlice(s.FailureDomains)
+
+	return publicIPAddress, nil
+}
+
+// WasManaged implements azure.ASOResourceSpecGetter.
+func (s *PublicIPSpec) WasManaged(_ *asonetworkv1.PublicIPAddress) bool {
+	return false
 }

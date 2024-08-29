@@ -144,11 +144,11 @@ func (s *ClusterScope) ASOOwner() client.Object {
 }
 
 // PublicIPSpecs returns the public IP specs.
-func (s *ClusterScope) PublicIPSpecs() []azure.ResourceSpecGetter {
-	var publicIPSpecs []azure.ResourceSpecGetter
+func (s *ClusterScope) PublicIPSpecs() []azure.ASOResourceSpecGetter[*asonetworkv1api20201101.PublicIPAddress] {
+	var publicIPSpecs []azure.ASOResourceSpecGetter[*asonetworkv1api20201101.PublicIPAddress]
 
 	// Public IP specs for control plane lb
-	var controlPlaneOutboundIPSpecs []azure.ResourceSpecGetter
+	var controlPlaneOutboundIPSpecs []azure.ASOResourceSpecGetter[*asonetworkv1api20201101.PublicIPAddress]
 	if s.IsAPIServerPrivate() {
 		// Public IP specs for control plane outbound lb
 		if s.ControlPlaneOutboundLB() != nil {
@@ -167,7 +167,7 @@ func (s *ClusterScope) PublicIPSpecs() []azure.ResourceSpecGetter {
 			}
 		}
 	} else {
-		controlPlaneOutboundIPSpecs = []azure.ResourceSpecGetter{
+		controlPlaneOutboundIPSpecs = []azure.ASOResourceSpecGetter[*asonetworkv1api20201101.PublicIPAddress]{
 			&publicips.PublicIPSpec{
 				Name:             s.APIServerPublicIP().Name,
 				ResourceGroup:    s.ResourceGroup(),
@@ -202,7 +202,7 @@ func (s *ClusterScope) PublicIPSpecs() []azure.ResourceSpecGetter {
 	}
 
 	// Public IP specs for node NAT gateways
-	var nodeNatGatewayIPSpecs []azure.ResourceSpecGetter
+	var nodeNatGatewayIPSpecs []azure.ASOResourceSpecGetter[*asonetworkv1api20201101.PublicIPAddress]
 	for _, subnet := range s.NodeSubnets() {
 		if subnet.IsNatGatewayEnabled() {
 			nodeNatGatewayIPSpecs = append(nodeNatGatewayIPSpecs, &publicips.PublicIPSpec{

@@ -25,7 +25,7 @@ import (
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 )
 
-func TestIPTagsToSDK(t *testing.T) {
+func TestIpTagsToASO(t *testing.T) {
 	tests := []struct {
 		name   string
 		ipTags []infrav1.IPTag
@@ -62,7 +62,7 @@ func TestIPTagsToSDK(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := IPTagsToSDK(tt.ipTags); !reflect.DeepEqual(got, tt.want) {
+			if got := IpTagsToASO(tt.ipTags); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("IPTagsToSDK() = %v, want %v", got, tt.want)
 			}
 		})
